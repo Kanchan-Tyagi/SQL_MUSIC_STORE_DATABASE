@@ -90,15 +90,11 @@ This set of queries focuses on extracting core insights related to employees, sa
             sum(invoice.total) AS total
         FROM customer
         JOIN invoice ON customer.customer_id = invoice.customer_id
-        GROUP BY customer.customer_id, customer.first_name, customer.last_name
+        GROUP BY customer.customer_id
         ORDER BY total DESC
         LIMIT 1;
         ```
       * **Insight:** Highlights the most valuable customer, enabling businesses to focus on retention strategies or offer exclusive benefits to high spenders.
-  
-      * Here's the detailed breakdown for your "Set 2" queries, formatted to be easily added to your GitHub README under a new section.
-
------
 
 ### Set 2: Advanced Customer & Music Analysis
 
@@ -122,7 +118,7 @@ This set of queries delves deeper into specific music genres, customer preferenc
             )
             ORDER BY email;
             ```
-          * **Direct Join Approach (Also Valid and Often More Efficient):** This approach joins all necessary tables (`customer`, `invoice`, `invoice_line`, `track`, `genre`) directly and filters by genre name. This version also explicitly includes the `genre.name` in the select clause, which was requested in the question but missing in the first query.
+          * **Direct Join Approach (Also Valid and Often More Efficient):** This approach joins all necessary tables (`customer`, `invoice`, `invoice_line`, `track`, `genre`) directly and filters by genre name. This version also explicitly includes the `genre.name` in the select clause, which was requested in the question.
             ```sql
             SELECT DISTINCT
                 email AS Email,
@@ -180,148 +176,136 @@ This set of queries delves deeper into specific music genres, customer preferenc
         ORDER BY milliseconds DESC;
         ```
       * **Insight:** Helps in categorizing tracks by length, potentially useful for creating playlists (e.g., "long-play tracks") or analyzing listener engagement with different song durations.
-  
-      * Here's the detailed breakdown for your "Set 3" queries, formatted to be easily added to your GitHub README under the "SQL Queries and Insights" section.
 
-Set 3: Advanced Business Metrics & Ranking
+### Set 3: Advanced Business Metrics & Ranking
 
 This set of queries tackles more complex business questions, involving Common Table Expressions (CTEs) and window functions to derive deeper insights and rankings, especially concerning customer spending on artists, popular genres per country, and top customers per country.
 
-    Find how much amount is spent by each customer on artists? Write a query to return customer name, artist name, and total amount spent.
+1.  **Find how much amount is spent by each customer on the best-selling artist? Write a query to return customer name, artist name, and total amount spent.**
 
-        Purpose: To understand customer preferences for specific artists by showing how much each customer has spent on music by a particular artist. This can help in targeted marketing or artist promotion. The provided query specifically focuses on calculating spending on the best-selling artist in the dataset.
-
-        Query:
-        SQL
-
-    WITH best_selling_artist AS (
-        SELECT
-            artist.artist_id AS artist_id,
-            artist.name AS artist_name,
-            SUM(invoice_line.unit_price * invoice_line.quantity) AS total_sales
-        FROM invoice_line
-        JOIN track ON track.track_id = invoice_line.track_id
-        JOIN album ON album.album_id = track.album_id
-        JOIN artist ON artist.artist_id = album.artist_id
-        GROUP BY 1
-        ORDER BY 3 DESC
-        LIMIT 1
-    )
-    SELECT
-        c.customer_id,
-        c.first_name,
-        c.last_name,
-        bsa.artist_name,
-        SUM(il.unit_price * il.quantity) AS amount_spent
-    FROM invoice i
-    JOIN customer c ON c.customer_id = i.customer_id
-    JOIN invoice_line il ON il.invoice_id = i.invoice_id
-    JOIN track t ON t.track_id = il.track_id
-    JOIN album alb ON alb.album_id = t.album_id
-    JOIN best_selling_artist bsa ON bsa.artist_id = alb.artist_id
-    GROUP BY 1, 2, 3, 4
-    ORDER BY 5 DESC;
-
-    Insight: Identifies which customers are spending the most on the overall top-selling artist, allowing for special recognition or personalized offers related to that artist's new releases or tours.
-
-We want to find out the most popular music genre for each country. We determine the most popular genre as the genre with the highest amount of purchases. Write a query that returns each country along with the top genre. For countries where the max no. of purchases is shared, return all genres.
-
-    Purpose: To understand the dominant music preferences in different countries, which is vital for regional marketing, inventory management, and targeting content.
-
-    Queries Provided:
-
-        Using ROW_NUMBER() (Method 1): This method uses a window function to rank genres by purchases within each country. It efficiently selects the top genre(s) handling ties.
-        SQL
-
-WITH popular_genre AS (
-    SELECT
-        COUNT(invoice_line.quantity) AS purchases,
-        customer.country,
-        genre.name,
-        genre.genre_id,
-        ROW_NUMBER() OVER (PARTITION BY customer.country ORDER BY COUNT(invoice_line.quantity) DESC) AS ROWNO
-    FROM invoice_line
-    JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
-    JOIN customer ON customer.customer_id = invoice.customer_id
-    JOIN track ON track.track_id = invoice_line.track_id
-    JOIN genre ON genre.genre_id = track.genre_id
-    GROUP BY 2, 3, 4
-)
-SELECT *
-FROM popular_genre
-WHERE ROWNO <= 1;
-
-Using MAX() in a CTE (Method 2 - Recursive CTE Not Actually Used Here, but a Multi-CTE Approach): This approach calculates sales per genre per country in one CTE and then finds the maximum sales for each country in another, finally joining them to filter for the top genre(s). This method is robust for handling ties.
-SQL
-
-        WITH sales_per_country AS (
+      * **Purpose:** To understand customer preferences for specific artists by showing how much each customer has spent on music by a particular artist. This can help in targeted marketing or artist promotion. The provided query specifically focuses on calculating spending on the **best-selling artist** in the dataset.
+      * **Query:**
+        ```sql
+        WITH best_selling_artist AS (
             SELECT
-                COUNT(*) AS purchases_per_genre,
-                customer.country,
-                genre.name,
-                genre.genre_id
+                artist.artist_id AS artist_id,
+                artist.name AS artist_name,
+                SUM(invoice_line.unit_price * invoice_line.quantity) AS total_sales
             FROM invoice_line
-            JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
-            JOIN customer ON customer.customer_id = invoice.customer_id
             JOIN track ON track.track_id = invoice_line.track_id
-            JOIN genre ON genre.genre_id = track.genre_id
-            GROUP BY 2, 3, 4
-        ),
-        max_genre_per_country AS (
-            SELECT
-                MAX(purchases_per_genre) AS max_genre_number,
-                country
-            FROM sales_per_country
-            GROUP BY 2
+            JOIN album ON album.album_id = track.album_id
+            JOIN artist ON artist.artist_id = album.artist_id
+            GROUP BY 1
+            ORDER BY 3 DESC
+            LIMIT 1
         )
-        SELECT sales_per_country.*
-        FROM sales_per_country
-        JOIN max_genre_per_country ON sales_per_country.country = max_genre_per_country.country
-        WHERE sales_per_country.purchases_per_genre = max_genre_per_country.max_genre_number;
+        SELECT
+            c.customer_id,
+            c.first_name,
+            c.last_name,
+            bsa.artist_name,
+            SUM(il.unit_price * il.quantity) AS amount_spent
+        FROM invoice i
+        JOIN customer c ON c.customer_id = i.customer_id
+        JOIN invoice_line il ON il.invoice_id = i.invoice_id
+        JOIN track t ON t.track_id = il.track_id
+        JOIN album alb ON alb.album_id = t.album_id
+        JOIN best_selling_artist bsa ON bsa.artist_id = alb.artist_id
+        GROUP BY 1, 2, 3, 4
+        ORDER BY 5 DESC;
+        ```
+      * **Insight:** Identifies which customers are spending the most on the overall top-selling artist, allowing for special recognition or personalized offers related to that artist's new releases or tours.
 
-    Insight: Critical for localizing business strategies, such as stocking popular genres in specific regions, tailoring advertising, or planning genre-specific events.
+2.  **We want to find out the most popular music genre for each country. We determine the most popular genre as the genre with the highest amount of purchases. Write a query that returns each country along with the top genre. For countries where the max no. of purchases is shared, return all genres.**
 
-Write a query that determines the customer that has spent the most on music for each country. Write a query that returns the country along with the top customer and how much they spent. For countries that have spent the most amount shared, return all customers who have spent this money.
+      * **Purpose:** To understand the dominant music preferences in different countries, which is vital for regional marketing, inventory management, and targeting content.
+      * **Queries Provided:**
+          * **Using `ROW_NUMBER()` (Method 1):** This method uses a window function to rank genres by purchases within each country. It efficiently selects the top genre(s) handling ties.
+            ```sql
+            WITH popular_genre AS (
+                SELECT
+                    COUNT(invoice_line.quantity) AS purchases,
+                    customer.country,
+                    genre.name,
+                    genre.genre_id,
+                    ROW_NUMBER() OVER (PARTITION BY customer.country ORDER BY COUNT(invoice_line.quantity) DESC) AS ROWNO
+                FROM invoice_line
+                JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
+                JOIN customer ON customer.customer_id = invoice.customer_id
+                JOIN track ON track.track_id = invoice_line.track_id
+                JOIN genre ON genre.genre_id = track.genre_id
+                GROUP BY 2, 3, 4
+            )
+            SELECT *
+            FROM popular_genre
+            WHERE ROWNO <= 1;
+            ```
+          * **Using `MAX()` in a CTE (Method 2 - Multi-CTE Approach):** This approach calculates sales per genre per country in one CTE and then finds the maximum sales for each country in another, finally joining them to filter for the top genre(s). This method is robust for handling ties.
+            ```sql
+            WITH sales_per_country AS (
+                SELECT
+                    COUNT(*) AS purchases_per_genre,
+                    customer.country,
+                    genre.name,
+                    genre.genre_id
+                FROM invoice_line
+                JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
+                JOIN customer ON customer.customer_id = invoice.customer_id
+                JOIN track ON track.track_id = invoice_line.track_id
+                JOIN genre ON genre.genre_id = track.genre_id
+                GROUP BY 2, 3, 4
+            ),
+            max_genre_per_country AS (
+                SELECT
+                    MAX(purchases_per_genre) AS max_genre_number,
+                    country
+                FROM sales_per_country
+                GROUP BY 2
+            )
+            SELECT sales_per_country.*
+            FROM sales_per_country
+            JOIN max_genre_per_country ON sales_per_country.country = max_genre_per_country.country
+            WHERE sales_per_country.purchases_per_genre = max_genre_per_country.max_genre_number;
+            ```
+      * **Insight:** Critical for localizing business strategies, such as stocking popular genres in specific regions, tailoring advertising, or planning genre-specific events.
 
-    Purpose: To identify the highest-spending customer(s) within each country. This is crucial for regional customer relationship management and targeted loyalty programs.
+3.  **Write a query that determines the customer that has spent the most on music for each country. Write a query that returns the country along with the top customer and how much they spent. For countries that have spent the most amount shared, return all customers who have spent this money.**
 
-    Queries Provided:
-
-        Using MAX() in a CTE (Method 1 - Recursive CTE Not Actually Used Here, but a Multi-CTE Approach): This approach calculates total spending per customer per country in one CTE and then finds the maximum spending for each country in another, finally joining them to filter for the top customer(s). This method correctly handles ties.
-        SQL
-
-WITH customer_with_country AS (
-    SELECT
-        customer.customer_id,
-        first_name,
-        last_name,
-        billing_country,
-        SUM(invoice.total) AS total_spending
-    FROM invoice
-    JOIN customer ON customer.customer_id = invoice.customer_id
-    GROUP BY 1, 2, 3, 4
-),
-country_max_spending AS (
-    SELECT
-        billing_country,
-        MAX(total_spending) AS max_spending
-    FROM customer_with_country
-    GROUP BY billing_country
-)
-SELECT
-    cc.billing_country,
-    cc.total_spending,
-    cc.first_name,
-    cc.last_name,
-    cc.customer_id
-FROM customer_with_country cc
-JOIN country_max_spending ms ON cc.billing_country = ms.billing_country
-WHERE cc.total_spending = ms.max_spending
-ORDER BY 1;
-
-Using ROW_NUMBER() (Method 2): This method uses a window function to rank customers by spending within each country. It effectively selects the top customer(s) and handles ties by including all customers with the same top spending.
-SQL
-
+      * **Purpose:** To identify the highest-spending customer(s) within each country. This is crucial for regional customer relationship management and targeted loyalty programs.
+      * **Queries Provided:**
+          * **Using `MAX()` in a CTE (Method 1 - Multi-CTE Approach):** This approach calculates total spending per customer per country in one CTE and then finds the maximum spending for each country in another, finally joining them to filter for the top customer(s). This method correctly handles ties.
+            ```sql
+            WITH customer_with_country AS (
+                SELECT
+                    customer.customer_id,
+                    first_name,
+                    last_name,
+                    billing_country,
+                    SUM(invoice.total) AS total_spending
+                FROM invoice
+                JOIN customer ON customer.customer_id = invoice.customer_id
+                GROUP BY 1, 2, 3, 4
+            ),
+            country_max_spending AS (
+                SELECT
+                    billing_country,
+                    MAX(total_spending) AS max_spending
+                FROM customer_with_country
+                GROUP BY billing_country
+            )
+            SELECT
+                cc.billing_country,
+                cc.total_spending,
+                cc.first_name,
+                cc.last_name,
+                cc.customer_id
+            FROM customer_with_country cc
+            JOIN country_max_spending ms ON cc.billing_country = ms.billing_country
+            WHERE cc.total_spending = ms.max_spending
+            ORDER BY 1;
+            ```
+          * **Using `ROW_NUMBER()` (Method 2):** This method uses a window function to rank customers by spending within each country. It effectively selects the top customer(s) and handles ties by including all customers with the same top spending.
+            ```sql
             WITH customer_with_country AS (
                 SELECT
                     customer.customer_id,
@@ -337,10 +321,8 @@ SQL
             SELECT *
             FROM customer_with_country
             WHERE ROWNO <= 1;
-
-        Insight: Identifies the most valuable customers in each geographical market, enabling tailored VIP programs, direct outreach, and localized marketing efforts to foster stronger customer loyalty.
-
-
+            ```
+      * **Insight:** Identifies the most valuable customers in each geographical market, enabling tailored VIP programs, direct outreach, and localized marketing efforts to foster stronger customer loyalty.
 
 ## How to Use
 
@@ -353,8 +335,8 @@ To use these SQL queries:
 ## Technologies Used
 
   * SQL (Structured Query Language)
-  * Relational Database Management System (RDBMS) - pgAdmin4, PostgreSQL.
 
+  * Relational Database Management System (RDBMS) - pgAdmin4, PostgreSQL.
 
   * NOTE: ALL THE REFERENCE TABLES ARE PROVIDED IN "Music_Store_database(1).sql" FILE ATTACHED IN THE REPOSITORY.
 
